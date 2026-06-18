@@ -1,0 +1,138 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: TenderCrawler
+  datasource:
+    url: jdbc:h2:file:./data/tenderdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+
+tenderbot:
+  max-pages: 5
+
+  schedule:
+    cron: "0 0 9,14,19 * * *"
+
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    chat-id: ${TELEGRAM_CHAT_ID:}
+
+  # Available categories — user enables/disables via /categories command.
+  # Keywords are Russian root fragments (matched as substring, case-insensitive).
+  categories:
+    - id: IT
+      name: "IT и ПО"
+      emoji: "💻"
+      keywords:
+        - программн
+        - разработ
+        - информационн
+        - цифров
+        - автоматизац
+        - веб
+        - сайт
+        - портал
+        - систем
+        - приложен
+        - 1с
+        - компьютер
+        - ноутбук
+        - планшет
+        - сервер
+        - базы данных
+        - техническ поддержк
+
+    - id: FOOD
+      name: "Продукты питания"
+      emoji: "🍎"
+      keywords:
+        - продукт питан
+        - продовольств
+        - мясо
+        - молок
+        - хлеб
+        - рис
+        - мук
+        - сахар
+        - масло
+        - крупа
+        - овощ
+        - фрукт
+
+    - id: CLOTHING
+      name: "Одежда и обувь"
+      emoji: "👔"
+      keywords:
+        - одежд
+        - обувь
+        - форменн
+        - спецодежд
+        - ткань
+        - костюм
+
+    - id: CONSTRUCTION
+      name: "Строительство и ремонт"
+      emoji: "🏗️"
+      keywords:
+        - строительств
+        - строительн
+        - ремонт
+        - монтаж
+        - реконструкц
+        - подряд
+        - демонтаж
+
+    - id: FURNITURE
+      name: "Мебель"
+      emoji: "🪑"
+      keywords:
+        - мебель
+        - стул
+        - стол
+        - шкаф
+        - диван
+        - офисн мебел
+
+    - id: MEDICINE
+      name: "Медицина и фармация"
+      emoji: "💊"
+      keywords:
+        - медицинск
+        - лекарств
+        - медикамент
+        - фармацевт
+        - аптек
+        - препарат
+
+    - id: TRANSPORT
+      name: "Транспорт и перевозки"
+      emoji: "🚗"
+      keywords:
+        - транспорт
+        - автомобиль
+        - перевозк
+        - автобус
+        - грузовик
+
+    - id: SERVICES
+      name: "Услуги"
+      emoji: "📋"
+      keywords:
+        - консалтинг
+        - консультац
+        - аудит
+        - обучение
+        - тренинг
+        - юридическ
