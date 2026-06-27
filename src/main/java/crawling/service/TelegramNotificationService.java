@@ -41,17 +41,22 @@ public class TelegramNotificationService {
             log.warn("Telegram not configured — skipping notification for {}", tender.getExternalId());
             return;
         }
-        api.sendMessage(formatMessage(tender));
+        api.sendMessage(formatMessage(tender, "🆕 <b>Новый тендер</b>"));
         log.info("Sent notification for tender {}", tender.getExternalId());
+    }
+
+    public void sendSearchResult(String chatId, TenderDto tender) {
+        if (!api.isConfigured()) return;
+        api.sendMessage(chatId, formatMessage(tender, "🔍 <b>Без гарантийного взноса</b>"), null);
     }
 
     public void sendMessage(String text) {
         api.sendMessage(text);
     }
 
-    private String formatMessage(TenderDto t) {
+    private String formatMessage(TenderDto t, String header) {
         StringBuilder sb = new StringBuilder();
-        sb.append("🆕 <b>Новый тендер</b>");
+        sb.append(header);
 
         // Category badge
         if (t.getMatchedCategory() != null) {

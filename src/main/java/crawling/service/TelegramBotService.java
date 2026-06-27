@@ -3,13 +3,17 @@ package crawling.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import crawling.config.FilterProperties;
 import crawling.config.TelegramProperties;
+import crawling.dto.DetailInfo;
+import crawling.dto.TenderDto;
 import crawling.entity.FilterSettings;
+import crawling.service.TenderScraperService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +27,8 @@ public class TelegramBotService {
     private final TelegramProperties telegram;
     private final FilterProperties filterProperties;
     private final FilterSettingsService settingsService;
+    private final TenderScraperService scraper;
+    private final TelegramNotificationService notifier;
     private final crawling.scheduler.TenderCheckScheduler scheduler;
 
     private volatile long updateOffset = 0;
@@ -91,6 +97,7 @@ public class TelegramBotService {
             case "budget"         -> { api.answerCallbackQuery(cbId, null); showBudget(chatId, msgId); }
             case "settings"       -> { api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
             case "check"          -> handleCheck(chatId, msgId, cbId);
+            case "scan_nofee"     -> handleNoFeeScan(chatId, msgId, cbId);
             case "toggle_exp"       -> { settingsService.setExperienceCheck(!settingsService.get().isExperienceCheckEnabled()); api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
             case "toggle_active"    -> { settingsService.setActiveOnly(!settingsService.get().isActiveOnlyFilter()); api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
             case "toggle_guarantee" -> { settingsService.setGuaranteeCheck(!settingsService.get().isGuaranteeCheckEnabled()); api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
@@ -143,6 +150,7 @@ public class TelegramBotService {
 
         List<List<Map<String, String>>> kb = List.of(
                 List.of(btn("🔍 Проверить сейчас", "check")),
+                List.of(btn("📋 Найти без гарантийного взноса", "scan_nofee")),
                 List.of(btn("📂 Категории", "cat"), btn("💰 Бюджет", "budget")),
                 List.of(btn("⚙️ Настройки", "settings"))
         );
@@ -236,6 +244,50 @@ public class TelegramBotService {
                 showMenu(chatId, null);
             }
         }, "manual-check").start();
+    }
+
+    private void handleNoFeeScan(String chatId, long msgId, String cbId) {
+        api.answerCallbackQuery(cbId, "Запускаю поиск...");
+        api.editMessageText(chatId, msgId,
+                "⏳ <b>Ищу тендеры без гарантийного взноса...</b>\n\nПроверяю каждый тендер — займёт ~30 сек.", null);
+
+        new Thread(() -> {
+            try {
+                List<TenderDto> all = scraper.fetchLatest();
+                List<TenderDto> results = new ArrayList<>();
+
+                for (TenderDto t : all) {
+                    if (t.getDeadline() != null && !t.getDeadline().isAfter(LocalDateTime.now())) continue;
+                    try { Thread.sleep(300); } catch (InterruptedException e) { break; }
+                    DetailInfo detail = scraper.fetchDetailInfo(t.getDetailUrl());
+                    t.setCity(detail.city());
+                    t.setExperienceText(detail.experienceText());
+                    t.setExperienceRequired(detail.hasExperience());
+                    t.setGuaranteeRequired(detail.guaranteeRequired());
+                    if (!detail.guaranteeRequired()) {
+                        results.add(t);
+                    }
+                }
+
+                if (results.isEmpty()) {
+                    api.editMessageText(chatId, msgId,
+                            "😔 Среди актуальных тендеров не найдено ни одного без взноса.", null);
+                } else {
+                    api.editMessageText(chatId, msgId,
+                            String.format("✅ <b>Найдено %d тендеров без взноса</b> (из %d актуальных)",
+                                    results.size(), all.size()), null);
+                    for (TenderDto t : results) {
+                        notifier.sendSearchResult(chatId, t);
+                        try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+                    }
+                }
+            } catch (Exception e) {
+                log.error("No-fee scan failed: {}", e.getMessage());
+                api.sendMessage(chatId, "❌ Ошибка при поиске: " + e.getMessage(), null);
+            } finally {
+                showMenu(chatId, null);
+            }
+        }, "scan-nofee").start();
     }
 
     /** Called by the scheduler after automated checks to keep the menu visible at the bottom. */
