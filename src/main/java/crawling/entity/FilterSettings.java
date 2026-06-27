@@ -35,4 +35,9 @@ public class FilterSettings {
     @Column(nullable = false)
     @Builder.Default
     private boolean activeOnlyFilter = true;
+
+    // When true: fetch detail page and skip tenders that require a guarantee fee
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean guaranteeCheckEnabled = false;
 }

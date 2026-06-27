@@ -91,8 +91,9 @@ public class TelegramBotService {
             case "budget"         -> { api.answerCallbackQuery(cbId, null); showBudget(chatId, msgId); }
             case "settings"       -> { api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
             case "check"          -> handleCheck(chatId, msgId, cbId);
-            case "toggle_exp"     -> { settingsService.setExperienceCheck(!settingsService.get().isExperienceCheckEnabled()); api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
-            case "toggle_active"  -> { settingsService.setActiveOnly(!settingsService.get().isActiveOnlyFilter()); api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
+            case "toggle_exp"       -> { settingsService.setExperienceCheck(!settingsService.get().isExperienceCheckEnabled()); api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
+            case "toggle_active"    -> { settingsService.setActiveOnly(!settingsService.get().isActiveOnlyFilter()); api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
+            case "toggle_guarantee" -> { settingsService.setGuaranteeCheck(!settingsService.get().isGuaranteeCheckEnabled()); api.answerCallbackQuery(cbId, null); showSettings(chatId, msgId); }
             default -> {
                 if (data.startsWith("toggle_cat_")) {
                     String catId = data.substring("toggle_cat_".length());
@@ -137,7 +138,8 @@ public class TelegramBotService {
         }
 
         sb.append("<b>Только актуальные:</b> ").append(s.isActiveOnlyFilter() ? "✅" : "⬜").append("\n");
-        sb.append("<b>Проверка опыта:</b> ").append(s.isExperienceCheckEnabled() ? "✅" : "⬜").append("\n");
+        sb.append("<b>Без требования опыта:</b> ").append(s.isExperienceCheckEnabled() ? "✅" : "⬜").append("\n");
+        sb.append("<b>Без гарантийного взноса:</b> ").append(s.isGuaranteeCheckEnabled() ? "✅" : "⬜").append("\n");
 
         List<List<Map<String, String>>> kb = List.of(
                 List.of(btn("🔍 Проверить сейчас", "check")),
@@ -203,13 +205,17 @@ public class TelegramBotService {
                 List.of(btn(
                         (s.isExperienceCheckEnabled() ? "✅" : "⬜") + " Без требования опыта",
                         "toggle_exp")),
+                List.of(btn(
+                        (s.isGuaranteeCheckEnabled() ? "✅" : "⬜") + " Без гарантийного взноса",
+                        "toggle_guarantee")),
                 List.of(btn("◀️ Назад", "menu"))
         );
 
         StringBuilder sb = new StringBuilder();
         sb.append("<b>⚙️ Настройки</b>\n\n");
         sb.append("<b>Только актуальные</b> — скрывает тендеры с истёкшим сроком подачи.\n\n");
-        sb.append("<b>Без требования опыта</b> — бот открывает страницу каждого тендера и проверяет наличие требования опыта. Немного замедляет работу.");
+        sb.append("<b>Без требования опыта</b> — бот открывает страницу каждого тендера и проверяет наличие требования опыта. Немного замедляет работу.\n\n");
+        sb.append("<b>Без гарантийного взноса</b> — скрывает тендеры, требующие гарантийный взнос.");
 
         api.editMessageText(chatId, msgId, sb.toString(), kb);
     }
@@ -221,13 +227,11 @@ public class TelegramBotService {
 
         new Thread(() -> {
             try {
-                scheduler.checkTenders();
+                scheduler.checkTenders(false);
             } catch (Exception e) {
                 log.error("Manual check failed: {}", e.getMessage());
                 api.sendMessage(chatId, "❌ Ошибка при проверке: " + e.getMessage(), null);
             } finally {
-                // Mark the ⏳ message as done, then send a FRESH menu at the bottom
-                // so the user doesn't have to scroll up to find the buttons
                 api.editMessageText(chatId, msgId, "✅ Проверка завершена", null);
                 showMenu(chatId, null);
             }

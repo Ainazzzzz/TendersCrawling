@@ -48,10 +48,11 @@ public class Tender {
 
     private String matchedCategory;
     private Boolean experienceRequired;
+    private Boolean guaranteeRequired;
 
     @Column(length = 200)
     private String city;
 
-    @Column(length = 500)
+    @Column(length = 2000)
     private String experienceText;
 }

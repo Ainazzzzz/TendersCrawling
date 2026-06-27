@@ -93,4 +93,11 @@ public class FilterSettingsService {
         settings.setActiveOnlyFilter(enabled);
         save(settings);
     }
+
+    @Transactional
+    public void setGuaranteeCheck(boolean enabled) {
+        FilterSettings settings = get();
+        settings.setGuaranteeCheckEnabled(enabled);
+        save(settings);
+    }
 }

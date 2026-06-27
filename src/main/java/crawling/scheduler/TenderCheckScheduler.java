@@ -36,6 +36,11 @@ public class TenderCheckScheduler {
 
     @Scheduled(cron = "${tenderbot.schedule.cron}")
     public void checkTenders() {
+        checkTenders(true);
+    }
+
+    /** @param sendMenuAfter true for scheduled runs; false when called manually (caller handles its own menu) */
+    public void checkTenders(boolean sendMenuAfter) {
         log.info("=== Tender check started ===");
 
         List<TenderDto> fetched = scraper.fetchLatest();
@@ -67,8 +72,12 @@ public class TenderCheckScheduler {
                 dto.setCity(detail.city());
                 dto.setExperienceText(detail.experienceText());
                 dto.setExperienceRequired(detail.hasExperience());
+                dto.setGuaranteeRequired(detail.guaranteeRequired());
 
                 if (settings.isExperienceCheckEnabled() && detail.hasExperience()) {
+                    basicMatch = false;
+                }
+                if (basicMatch && settings.isGuaranteeCheckEnabled() && detail.guaranteeRequired()) {
                     basicMatch = false;
                 }
             }
@@ -88,6 +97,7 @@ public class TenderCheckScheduler {
                     .matchedFilter(basicMatch)
                     .matchedCategory(dto.getMatchedCategory())
                     .experienceRequired(dto.getExperienceRequired())
+                    .guaranteeRequired(dto.getGuaranteeRequired())
                     .city(dto.getCity())
                     .experienceText(dto.getExperienceText())
                     .build());
@@ -100,9 +110,11 @@ public class TenderCheckScheduler {
 
         log.info("=== Check complete: {} new, {} matched filter ===", newCount, matchCount);
 
-        // Send fresh menu at the bottom so the user can see it after notifications
-        try { botService.sendMenuToDefaultChat(); } catch (Exception e) {
-            log.warn("Could not send menu after check: {}", e.getMessage());
+        // Send fresh menu only when notifications were sent, so the user sees the buttons below them
+        if (sendMenuAfter && matchCount > 0) {
+            try { botService.sendMenuToDefaultChat(); } catch (Exception e) {
+                log.warn("Could not send menu after check: {}", e.getMessage());
+            }
         }
     }
 
@@ -118,8 +130,10 @@ public class TenderCheckScheduler {
 
         dto.setMatchedCategory(filterService.findMatchedCategoryId(dto));
 
-        // Use stored detail info; fetch fresh only if experience check is on and was never done
-        if (settings.isExperienceCheckEnabled() && existing.getExperienceRequired() == null) {
+        // Fetch detail page if any check is enabled and data was never stored
+        boolean needDetail = (settings.isExperienceCheckEnabled() && existing.getExperienceRequired() == null)
+                || (settings.isGuaranteeCheckEnabled() && existing.getGuaranteeRequired() == null);
+        if (needDetail) {
             try { Thread.sleep(500); } catch (InterruptedException e) {
                 Thread.currentThread().interrupt(); return false;
             }
@@ -127,14 +141,20 @@ public class TenderCheckScheduler {
             existing.setCity(detail.city());
             existing.setExperienceText(detail.experienceText());
             existing.setExperienceRequired(detail.hasExperience());
+            existing.setGuaranteeRequired(detail.guaranteeRequired());
         }
 
         dto.setCity(existing.getCity());
         dto.setExperienceText(existing.getExperienceText());
         dto.setExperienceRequired(existing.getExperienceRequired());
+        dto.setGuaranteeRequired(existing.getGuaranteeRequired());
 
         if (settings.isExperienceCheckEnabled() && Boolean.TRUE.equals(existing.getExperienceRequired())) {
-            repository.save(existing); // persist experience result so we don't re-fetch next run
+            repository.save(existing);
+            return false;
+        }
+        if (settings.isGuaranteeCheckEnabled() && Boolean.TRUE.equals(existing.getGuaranteeRequired())) {
+            repository.save(existing);
             return false;
         }
 

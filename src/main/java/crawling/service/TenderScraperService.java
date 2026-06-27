@@ -54,10 +54,10 @@ public class TenderScraperService {
                     .timeout(TIMEOUT_MS)
                     .sslSocketFactory(trustAllSslFactory())
                     .get();
-            return new DetailInfo(extractCity(doc), extractExperienceText(doc));
+            return new DetailInfo(extractCity(doc), extractExperienceText(doc), extractGuaranteeRequired(doc));
         } catch (Exception e) {
             log.warn("Could not fetch detail page {}: {}", detailUrl, e.getMessage());
-            return new DetailInfo(null, null);
+            return new DetailInfo(null, null, false);
         }
     }
 
@@ -110,6 +110,38 @@ public class TenderScraperService {
             }
         }
         return "Требуется опыт выполнения аналогичных работ";
+    }
+
+    private boolean extractGuaranteeRequired(Document doc) {
+        // The portal shows guarantee fee as "Размер обеспечения заявки" or "Гарантийный взнос"
+        // with a numeric value. Zero or missing means no guarantee required.
+        for (Element label : doc.select("span.label, td")) {
+            String text = label.text().toLowerCase();
+            if (text.contains("обеспечени") || text.contains("гарантийный взнос")) {
+                Element sibling = label.nextElementSibling();
+                if (sibling != null) {
+                    String val = sibling.text().replaceAll("[^\\d.]", "").trim();
+                    if (!val.isEmpty()) {
+                        try {
+                            return new BigDecimal(val).compareTo(BigDecimal.ZERO) > 0;
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+            }
+        }
+        // Fallback: search full text for non-zero guarantee amounts
+        String fullText = doc.text();
+        Matcher m = Pattern.compile("(?:обеспечени[ея]|гарантийный взнос)[^\\d]{0,60}([\\d\\s,.]+)\\s*(?:сом|kgs|KGS|KGS|руб)?",
+                Pattern.CASE_INSENSITIVE).matcher(fullText);
+        if (m.find()) {
+            String val = m.group(1).replaceAll("[^\\d.]", "").trim();
+            if (!val.isEmpty()) {
+                try {
+                    return new BigDecimal(val).compareTo(BigDecimal.ZERO) > 0;
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return false;
     }
 
     public List<TenderDto> fetchLatest() {

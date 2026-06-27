@@ -24,6 +24,7 @@ public class TenderDto {
     // Set during filter evaluation and detail-page fetch
     private String matchedCategory;
     private Boolean experienceRequired;
+    private Boolean guaranteeRequired;
     private String city;           // delivery address city extracted from detail page
     private String experienceText; // actual requirement text, null if none
 }
